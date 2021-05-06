@@ -1,9 +1,8 @@
 import os.path
 import unittest
 
-from .settings import settings
-
-from .refs import TableOfCases, TableOfStatutes
+from refs import TableOfCases, TableOfStatutes
+from settings import settings
 
 test_pub_dirs = ["AdminHearing_2020_10"]
 # noinspection SpellCheckingInspection

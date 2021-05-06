@@ -2,8 +2,8 @@ import bs4
 import re
 from typing import List
 
-from .common import read_unicode_dammit
-from .settings import settings
+from common import read_unicode_dammit
+from settings import settings
 
 
 class RefError(Exception):
