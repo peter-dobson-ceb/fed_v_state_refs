@@ -2,10 +2,10 @@ import os
 import re
 from typing import Dict, List
 
-from .refs import TableOfCases, TableOfStatutes
-from .salesforce_metadata import get_salesforce_pub_date_by_id
-from .settings import settings
-from .common import is_dir_for_a_pub, XmlTag
+from common import is_dir_for_a_pub, XmlTag
+from refs import TableOfCases, TableOfStatutes
+from salesforce_metadata import get_salesforce_pub_date_by_id
+from settings import settings
 
 
 class Publication:
