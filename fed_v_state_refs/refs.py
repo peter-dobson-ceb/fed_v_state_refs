@@ -1,4 +1,14 @@
+import bs4
 import re
+from typing import List
+
+from .common import read_unicode_dammit
+from .settings import settings
+
+
+class RefError(Exception):
+    """Exception thrown when a reference can't be parsed."""
+    pass
 
 
 class Case:
@@ -48,6 +58,21 @@ class Case:
         return f"<{info[0:88]}>"
 
 
+class Statute:
+    def __init__(self, path: List[str], section=""):
+        self.path = list(path)  # make a copy of path
+        self.section = section
+        self.id = " / ".join(self.path)
+        if section:
+            self.id += " / " + section
+
+    def __str__(self):
+        info = f"{self.__module__}.{self.__class__.__name__} object; "
+        trim_index = 88-len(info)
+        info += f"'{self.id}'"[-trim_index:]
+        return f"<{info[0:88]}>"
+
+
 class TableOfCases:
     def __init__(self):
         self.cases: List[Case] = []
@@ -69,21 +94,6 @@ class TableOfCases:
         return result
 
 
-class Statute:
-    def __init__(self, path: List[str], section=""):
-        self.path = list(path)  # make a copy of path
-        self.section = section
-        self.id = " / ".join(self.path)
-        if section:
-            self.id += " / " + section
-
-    def __str__(self):
-        info = f"{self.__module__}.{self.__class__.__name__} object; "
-        trim_index = 88-len(info)
-        info += f"'{self.id}'"[-trim_index:]
-        return f"<{info[0:88]}>"
-
-
 _STATUTE_LEVEL_1_WORDS = ["california", "united states"]
 _STATUTE_LEVEL_2_WORDS = ["constitution", "statutes", "regulations", "rules", "regulatory actions", "ethics"]
 _STATUTE_PATH_PREFIXES = ["Art ", "Title ", "Div ", "Chap ", "Amend "]
@@ -92,23 +102,19 @@ _STATUTE_PATH_PREFIXES = ["Art ", "Title ", "Div ", "Chap ", "Amend "]
 class TableOfStatutes:
     def __init__(self):
         self.statutes: List[Statute] = []
-        self.file_path: str = ""  # the file that was these statutes were loaded from (used for error messages)
-        self._path: List[str] = []  # the path to the statute, for example ['CALIFORNIA','
+        self._path: List[str] = []
         self._path_used = False  # the value of _path has been used since it was changed
 
     def load(self, file_path):
-        self.file_path = file_path
         text, encoding = read_unicode_dammit(file_path)
         soup = bs4.BeautifulSoup(text, settings.html_parser)
         self._extract_statutes(soup)
 
     def _extract_statutes(self, soup):
         for entry in soup.find_all("p"):
-            entry_text = entry.text
-            has_colon = ":" in entry_text
-            entry_text = _remove_last_colon_and_after(entry_text)  # remove references to book sections
-            entry_text = re.sub(r"\s+", " ", entry_text).strip()  # fix newlines and spaces in entry_text
-            if entry_text == "ACTS BY POPULAR NAME":
+            entry_text = _remove_last_colon_and_after(entry.text)  # removes references to book sections
+            entry_text = re.sub(r"\s+", " ", entry_text).strip()  # fixes newlines and spaces in entry_text
+            if entry_text.lower() == "united states":
                 print("TEST")
             if not entry_text:
                 continue
@@ -121,11 +127,9 @@ class TableOfStatutes:
                     self._path_add(entry_text)  # all TableCtr entries become part of path
             elif entry["class"][0] == "code":
                 self._path_trim_add(2, entry_text)
-            elif entry["class"][0] in ["stat", "PopAct"]:
+            elif entry["class"][0] == "stat":
                 prefix = TableOfStatutes._find_starts_with(entry_text, _STATUTE_PATH_PREFIXES)
-                if has_colon:
-                    self._statute_add(entry_text)
-                elif prefix:
+                if prefix:
                     self._path_trim_add(prefix, entry_text)
                 elif TableOfStatutes._is_sections_ref(entry_text):
                     self._statute_add(entry_text)
@@ -180,5 +184,16 @@ class TableOfStatutes:
             if not re.match(r"[0-9]+(\.[0-9]+)?(\([a-z]\))?", part):
                 return False
         return True
+
+
+def _remove_last_colon_and_after(text: str) -> str:
+    """Remove the last occurrence of a colon ':' and all characters after.
+    If no colon is in string, return string unchanged."""
+    try:
+        index = text.rindex(":")
+        return text[:index]
+    except ValueError:
+        pass
+    return text
 
 # end of file
