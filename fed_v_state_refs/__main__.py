@@ -6,13 +6,15 @@ from .settings import settings
 
 def main():
     parser = argparse.ArgumentParser(description="Federal v. state references in OnLAW Publications.")
-    parser.add_argument('--env', nargs=1)
+    parser.add_argument('--env', nargs=1, default="production")
     parser.add_argument('--debug', '-d', action="store_true")
     args = parser.parse_args()
 
     initialize_settings(args)  # reads .ini file, etc.
 
-    # Publications().scan()
+    publications = Publications()
+    publications.scan_pubs()
+    print("TEST")
 
 
 def initialize_settings(args):

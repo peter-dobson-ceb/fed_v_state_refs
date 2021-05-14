@@ -14,6 +14,7 @@ class SalesforceMetadata:
         self._cache_expires = datetime.datetime(2000, 1, 1)
         self._salesforce_metadata_cache = None
         self._salesforce_pub_date_by_id = {}
+        self._salesforce_metadata_by_pub_nxt_id = {}
 
     def get_salesforce_metadata(self):
         if self._cache_expires < datetime.datetime.now():
@@ -23,6 +24,15 @@ class SalesforceMetadata:
             self._cache_expires = \
                 datetime.datetime.now() + datetime.timedelta(minutes=CACHE_MINUTES)
         return self._salesforce_metadata_cache
+
+    def get_salesforce_metadata_by_pub_nxt_id(self):
+        if not len(self._salesforce_metadata_by_pub_nxt_id)or \
+                self._cache_expires >= datetime.datetime.now():
+            metadata = self.get_salesforce_metadata()
+            for product in metadata["products"]:
+                nxt_id = product["onlawId"]
+                self._salesforce_metadata_by_pub_nxt_id[nxt_id] = product
+        return self._salesforce_metadata_by_pub_nxt_id
 
     def get_salesforce_pub_date_by_id(self):
         if not len(self._salesforce_pub_date_by_id) or \

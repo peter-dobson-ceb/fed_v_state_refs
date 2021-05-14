@@ -2,10 +2,10 @@ import os
 import re
 from typing import Dict, List
 
-from common import is_dir_for_a_pub, XmlTag
-from refs import TableOfCases, TableOfStatutes
-from salesforce_metadata import get_salesforce_pub_date_by_id
-from settings import settings
+from .common import is_dir_for_a_pub, XmlTag
+from .refs import TableOfCases, TableOfStatutes
+from .salesforce_metadata import salesforce_metadata
+from .settings import settings
 
 
 class Publication:
@@ -24,7 +24,7 @@ class Publication:
             if match:
                 self._year_month = match.group(1)
             else:
-                pub_date = get_salesforce_pub_date_by_id()[self.nxt_id()]
+                pub_date = salesforce_metadata.get_salesforce_pub_date_by_id()[self.nxt_id()]
                 raise NotImplementedError(f"don't know how to get month_year for {self.dir_name()}")
         return self._year_month
 
@@ -57,12 +57,12 @@ class Publication:
     def has_table_of_cases(self):
         return os.path.isfile(self._table_of_cases_file_path())
 
-    # def get_cases(self) -> List[Case]:
-    #     if not self._cases:
-    #         table_of_cases = TableOfCases()
-    #         table_of_cases.load(self._table_of_cases_file_path())
-    #         self._cases = table_of_cases._list_cases()
-    #     return self._cases
+    def get_cases(self) -> List[Case]:
+        if not self._cases:
+            table_of_cases = TableOfCases()
+            table_of_cases.load(self._table_of_cases_file_path())
+            self._cases = table_of_cases._list_cases()
+        return self._cases
 
     def _table_of_cases_file_path(self):
         return os.path.join(self.dir_path, "emc.htm")
@@ -80,10 +80,15 @@ class Publication:
     def _table_of_statutes_file_path(self):
         return os.path.join(self.dir_path, "ems.htm")
 
-    def get_practice_area_name(self):
-        pub = get_salesforce_pub_date_by_id()[self.nxt_id()]
-        raise NotImplementedError("code incomplete")
-        return ""
+    def get_practice_area_name_slug(self) -> [str, str]:
+        metadata_by_pub_nxt_id = salesforce_metadata.get_salesforce_metadata_by_pub_nxt_id()
+        if metadata_by_pub_nxt_id and self.nxt_id() in metadata_by_pub_nxt_id:
+            data = metadata_by_pub_nxt_id[self.nxt_id()]
+            if data:
+                for practice_area in data["practiceAreas"]:
+                    if practice_area["primary"]:
+                        return practice_area["name"], practice_area["slug"]
+        return "", ""
 
 
 class PracticeArea:
@@ -115,6 +120,8 @@ class Publications:
             pub = Publication(dir_entry.path)
 
             if pub.has_table_of_cases() or pub.has_table_of_statutes():
+                pub.read_table_of_cases()
+                pub.read_table_of_statutes()
                 self.add_pub(pub)
         return
 
@@ -131,7 +138,7 @@ class Publications:
                 self.del_pub(other_pub)
         self.pubs_by_nxt_id[pub_nxt_id] = pub
 
-        practice_area_name = pub.get_practice_area_name()
+        practice_area_name, practice_area_slug = pub.get_practice_area_name_slug()
         if practice_area_name in self.practice_areas_by_name:
             practice_area = self.practice_areas_by_name[practice_area_name]
         else:

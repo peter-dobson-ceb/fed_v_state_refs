@@ -11,6 +11,14 @@ BASE_FOLDER = Path(__file__).parent.parent
 
 
 class _Settings:
+    """Settings is designed to gather settings from the OS environment, the command line, and a settings .ini file.
+    To use settings main should call the following methods in this order:
+    1. init_env()
+    2. set_args(args)
+    3. read_ini()
+    4. final_env()
+    Then values can be read from the global settings object (that is imported using `from settings import settings`)
+    """
     def __init__(self):
         self.base_folder = BASE_FOLDER
         self.args = None  # argparse return value
@@ -51,6 +59,7 @@ class _Settings:
 
         if not settings.source:
             raise ValueError(f"{ini_file_path} SETTINGS must specify SOURCE")
+        settings.source = os.path.join(settings.base_folder, settings.source)
         if not os.path.isdir(settings.source):
             raise ValueError(f"{ini_file_path} SETTINGS SOURCE {settings.source} must be a folder")
 
