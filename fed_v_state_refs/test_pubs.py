@@ -1,8 +1,9 @@
 import unittest
 
 from argparse import Namespace
-from pubs import Publication, Publications
-from settings import settings
+
+from fed_v_state_refs.pubs import Publication, Publications
+from fed_v_state_refs.settings import settings
 
 
 class TestPublication(unittest.TestCase):

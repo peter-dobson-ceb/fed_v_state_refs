@@ -57,13 +57,6 @@ class Publication:
     def has_table_of_cases(self):
         return os.path.isfile(self._table_of_cases_file_path())
 
-    def get_cases(self) -> List[Case]:
-        if not self._cases:
-            table_of_cases = TableOfCases()
-            table_of_cases.load(self._table_of_cases_file_path())
-            self._cases = table_of_cases._list_cases()
-        return self._cases
-
     def _table_of_cases_file_path(self):
         return os.path.join(self.dir_path, "emc.htm")
 
@@ -89,6 +82,16 @@ class Publication:
                     if practice_area["primary"]:
                         return practice_area["name"], practice_area["slug"]
         return "", ""
+
+    def read_table_of_cases(self):
+        self._cases.load(self._table_of_cases_file_path())
+
+    def read_table_of_statutes(self):
+        # self._statutes.load(self._table_of_statutes_file_path())
+        pass
+
+    def case_count_by_jurisdiction(self):
+        return self._cases.count_by_jurisdiction
 
 
 class PracticeArea:
@@ -149,15 +152,5 @@ class Publications:
 
     def del_pub(self, pub: Publication):
         del self.pubs_by_nxt_id[pub.nxt_id()]
-
-    # def scan_cases(self):
-    #     for pub in self.pubs_by_nxt_id.values():
-    #         if pub.has_table_of_cases():
-    #             pub.get_statutes()
-    #
-    # def scan_statutes(self):
-    #     for pub in self.pubs_by_nxt_id.values():
-    #         if pub.has_table_of_statutes():
-    #             pub.get_statutes()
 
 # end of file
