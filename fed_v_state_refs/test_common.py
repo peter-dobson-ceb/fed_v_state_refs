@@ -11,8 +11,8 @@ class TestCommon(unittest.TestCase):
         initialize_settings()
 
     def test_is_dir_for_a_pub(self):
-        dir = os.path.join(settings.source, "AdminHearing_2020_10")
-        self.assertTrue(is_dir_for_a_pub(dir))
+        path = os.path.join(settings.source, "AdminHearing_2020_10")
+        self.assertTrue(is_dir_for_a_pub(path))
 
 
 def initialize_settings():

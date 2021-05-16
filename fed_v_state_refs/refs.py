@@ -9,153 +9,117 @@ from settings import settings
 logger = logging.getLogger(__name__)
 
 
-class CourtReporters:
-    def __init__(self):
-        self.courts_by_jurisdiction = {
-            # these are all the court reporters used in CEB style - we hope
-            "1-California": ['C', 'C2d', 'C3d', 'C4th', 'C5th', 'CA', 'CA2d', 'CA3d', 'CA4th', 'CA5th',
-                             'CA Supp', 'CA2d Supp', 'CA3d Supp', 'CA4th Supp', 'CA5th Supp',
-                             'Cal State Bar Ct Rptr'],
-            "2-Federal": ['F', 'F2d', 'F3d', 'F Supp', 'F Supp 2d', 'US', 'S Ct', 'US Dist Lexis'],
-            "3-New York": ['NY', 'NY2d', 'NY3d', 'NYS', 'NYS2d'],
-            "3-State": ['A', 'A2d', 'A3d', 'NE', 'NE2d', 'NW', 'NW2d', 'SE', 'SE2d', 'So', 'So2d', 'So3d',
-                        'SW', 'SW2d', 'SW3d', 'P', 'P2d', 'P3d'],
-            "4-Unknown": []}
-        self._jurisdiction_by_court = {}
-        # noinspection PyTypeChecker
-        self._match: re.Pattern = None
-
-    def jurisdiction_for_court(self, court: str):
-        if not self._jurisdiction_by_court:
-            for jurisdiction in self.courts_by_jurisdiction.keys():
-                for court in self.courts_by_jurisdiction[jurisdiction]:
-                    self._jurisdiction_by_court[court] = jurisdiction
-        if court not in self._jurisdiction_by_court:
-            if "Unknown" not in self.courts_by_jurisdiction:
-                self.courts_by_jurisdiction["Unknown"] = []
-            self.courts_by_jurisdiction["Unknown"].append(court)
-            self._jurisdiction_by_court = {}
-            return "Unknown"
-        return self._jurisdiction_by_court[court]
-
-    def match(self) -> re.Pattern:
-        if self._match is None:
-            all_reporters = []
-            for reporter_list in self.courts_by_jurisdiction.values():
-                if reporter_list:
-                    all_reporters.extend(reporter_list)
-            regex = "[0-9]{1,3}\s+(" + "|".join(all_reporters) + ")\s+[0-9]{1,4}"
-            self._match = re.compile(regex)
-        return self._match
-
-court_reporters = CourtReporters()
-
-
 class RefError(Exception):
     """Exception thrown when a reference can't be parsed."""
     pass
 
 
-class Case:
-    """Represents a case reference."""
-    def __init__(self, text):
-        self._is_valid = False
-        if text is None:
-            raise RefError(f"Case parse error")
-        self.text = text
-        if "on other grounds in" in self.text:
-            raise RefError(f"Can't parse '{text}' as a case.")
-        match = re.fullmatch(r"\s*([^(]*)(\(.*\))([^)]*)", text)
-        if not match:
-            match = re.fullmatch(r"\s*(.*),( )(TC Memo [0-9]+[-–][0-9]+)", text)
-            if not match:
-                return
-            self.case_name_for_index = match.group(1)
-            self.case_name = Case._original_parties_order(self.case_name_for_index)
-            self.parenthesis = ""
-            self.case_refs = Case._split_case_refs(match.group(3))
-            self._is_valid = True
-            return
-        match_middle = re.fullmatch(r"(.*?)(\([^)]*\))", match.group(2))
-        if match_middle:
-            self.case_name_for_index = match.group(1)+match_middle.group(1).strip()
-            self.parenthesis = match_middle.group(2)
-        else:
-            self.case_name_for_index = match.group(1)
-            self.parenthesis = match.group(2)
-        self.case_name = Case._original_parties_order(self.case_name_for_index)
-        if match.group(3):
-            self.case_refs = Case._split_case_refs(match.group(3))
-            self._is_valid = True
-        else:
-            self.case_refs = []
+class Jurisdictions:
+    """A collection of strings that name the Jurisdictions we sort references into.
+    Each is prefixed by a digit so we can sort them in the order we'd like them to show up."""
+    CA = "1-California"
+    FED = "2-Federal"
+    OTHER = "3-Other States"
+    UNKNOWN = "4-Unknown"
 
-    def is_valid(self):
-        return self._is_valid
 
-    @staticmethod
-    def _original_parties_order(case_name) -> str:
+class Reporters:
+    """Manages information about the middle part of a case reference.
+    For example the reporter for '108 CA3d 696' iss 'CA3d'.
+    There is a limited set of reporters used in CEB publications.
+    They are groups into jurisdictions."""
+    def __init__(self):
         # noinspection SpellCheckingInspection
-        """In order to make the index useful, sometimes the parties to the case are reversed,
-        like '4,432 Mastercases of Cigarettes, U.S. v'.  This code puts then back in the original order.
-        It might sometimes mess up, if the first party has a comma space ', ' in it.
-        However the first party is only moved to the end if it's 'U.S.' or 'People'."""
-        if not isinstance(case_name, str):
-            print("TEST")
-        if case_name.strip().endswith(" v") or case_name.strip().endswith(" v."):
-            separator = case_name.split(" ")[-1]
-            case_name = case_name[:-3] if case_name.endswith(".") else case_name[:-2]
-            comma_space_index = case_name.rindex(", ")
-            if comma_space_index > 0:
-                party1 = case_name[comma_space_index + 2:]
-                party2 = case_name[:comma_space_index]
-                original_case_name = f"{party1.strip()} {separator} {party2.strip()}"
-                return original_case_name
-        elif case_name.strip().endswith(", Estate of"):
-            case_name = "Estate of "+case_name[:-12]
-        return case_name
+        self.ca_jurisdiction = "1-California"
+        self.reporters_by_jurisdiction = {
+            # these are all the court reporters used in CEB style - we hope
+            # the jurisdiction is prefixed by a digit so we can sort them when we output a report
+            Jurisdictions.CA: ['C', 'C2d', 'C3d', 'C4th', 'C5th', 'CA', 'CA2d', 'CA3d', 'CA4th', 'CA5th',
+                               'CA Supp', 'CA2d Supp', 'CA3d Supp', 'CA4th Supp', 'CA5th Supp',
+                               'Cal State Bar Ct Rptr'],
+            Jurisdictions.FED: ['F', 'F2d', 'F3d', 'F Supp', 'F Supp 2d', 'US', 'S Ct', 'US Dist Lexis'],
+            # if State will check value in parenthesis contains ca (case insensitive) if so make it ca_jurisdiction
+            Jurisdictions.OTHER: ['A', 'A2d', 'A3d', 'NE', 'NE2d', 'NW', 'NW2d', 'SE', 'SE2d', 'So', 'So2d', 'So3d',
+                                  'SW', 'SW2d', 'SW3d', 'P', 'P2d', 'P3d',
+                                  # these 5 are New York state - just group in with state:
+                                  'NY', 'NY2d', 'NY3d', 'NYS', 'NYS2d'],
+            # any unrecognized reporters will be assigned last which should be called Unknown
+            # currently search for citation is done using the reporter names above - so no Unknown entries be found
+            Jurisdictions.UNKNOWN: []}
+        self._jurisdiction_by_reporter_map = {}
+        # noinspection PyTypeChecker
+        self._case_pattern: re.Pattern = None
+
+    def jurisdiction_for_reporter(self, reporter: str):
+        if reporter not in self.jurisdiction_by_reporter_map():
+            self._add_unknown_reporter(reporter)
+            return "Unknown"
+        return self.jurisdiction_by_reporter_map()[reporter]
+
+    def jurisdiction_by_reporter_map(self):
+        if not self._jurisdiction_by_reporter_map:
+            for jurisdiction in self.reporters_by_jurisdiction.keys():
+                for court in self.reporters_by_jurisdiction[jurisdiction]:
+                    self._jurisdiction_by_reporter_map[court] = jurisdiction
+        return self._jurisdiction_by_reporter_map
+
+    def _add_unknown_reporter(self, reporter):
+        if "Unknown" not in self.reporters_by_jurisdiction:
+            self.reporters_by_jurisdiction["Unknown"] = []
+        self.reporters_by_jurisdiction["Unknown"].append(reporter)
+        self._jurisdiction_by_reporter_map = {}
+
+    def case_pattern(self) -> re.Pattern:
+        if not self._case_pattern:
+            all_reporters = []
+            for reporter_list in self.reporters_by_jurisdiction.values():
+                if reporter_list:
+                    all_reporters.extend(reporter_list)
+            regex = r"(\([^)]*\)\s*)([0-9]{1,3}\s+(" + "|".join(all_reporters) + r")\s+[0-9]{1,4})"
+            self._case_pattern = re.compile(regex)
+        return self._case_pattern
+
+
+reporters = Reporters()
+
+
+class TableOfCases:
+    """Represents the table of cases for one publication"""
+    def __init__(self):
+        self._case_set = set()
+        self.cases_by_jurisdiction = {}
+
+    def load(self, file_path):
+        text, encoding = read_unicode_dammit(file_path)
+        for match in re.finditer(reporters.case_pattern(), text):
+            parenthesis = re.sub(r"\s+", " ", match.group(1))
+            case_str = TableOfCases._clean_case_str(match.group(2))
+            if case_str not in self._case_set:
+                self._case_set.add(case_str)
+                self._count(case_str, parenthesis)
 
     @staticmethod
-    def _split_case_refs(text) -> List[str]:
-        result = []
-        if "on other grounds in" in text:
-            print("TEST")
-        case_refs = text.split(",")
-        for case_ref in case_refs:
-            find = " disapproved on other grounds in "
-            if False and case_ref.startswith(find):
-                case_ref = case_ref[len(find):].strip()
-            else:
-                case_ref = case_ref.strip()
-            result.append(case_ref)
-        return result
+    def _clean_case_str(case_str):
+        """Fixes case_str so there is one space between vol reporter page components."""
+        match = re.fullmatch(r"([0-9]+)\s*(.*?)\s*([0-9]+)", case_str)
+        vol, reporter, page = match.groups()
+        return f"{vol} {reporter} {page}"
 
-    def courts(self) -> List[str]:
-        result = []
-        for case_ref in self.case_refs:
-            parts = case_ref.split()
-            if len(parts) >= 3:
-                court = " ".join(parts[1:-1])
-                result.append(court)
-        return result
+    def _count(self, case_str, parenthesis):
+        match = re.fullmatch(r"([0-9]+) (.*?) ([0-9]+)", case_str)
+        if not match:
+            raise RefError(f"Can't parse case {case_str}")
 
-    def jurisdiction(self):
-        # collect up all jurisdictions that are in any of self.courts()
-        jurisdictions = []
-        for court in self.courts():
-            if court.endswith(" at"):
-                court = court[:-3]
-            jurisdiction = court_reporters.jurisdiction_for_court(court)
-            jurisdictions.append(jurisdiction)
-        if jurisdictions:  # if we found at least one jurisdiction
-            # the alphabetically first is our best jurisdiction
-            sorted(jurisdictions)[0]
-        # the alphabetically last jurisdiction is our unknown value
-        return sorted(court_reporters.courts_by_jurisdiction.keys())[-1]
-
-    def __str__(self):
-        info = f"{self.__module__}.{self.__class__.__name__} object; '{self.case_refs[0]}'"
-        return f"<{info[0:88]}>"
+        vol, reporter, page = match.groups()
+        jurisdiction = reporters.jurisdiction_for_reporter(reporter.strip())
+        if jurisdiction == Jurisdictions.OTHER:
+            if "ca" in parenthesis.lower():
+                jurisdiction = reporters.ca_jurisdiction
+        if jurisdiction not in self.cases_by_jurisdiction:
+            self.cases_by_jurisdiction[jurisdiction] = []
+        case_info = case_str+" "+parenthesis.strip()
+        case_info = case_info.replace("\uFFFD", " ")  # \uFFFD won't encode cp1252 and exists in several emc.html files
+        self.cases_by_jurisdiction[jurisdiction].append(case_info)
 
 
 class Statute:
@@ -173,52 +137,6 @@ class Statute:
         return f"<{info[0:88]}>"
 
 
-class TableOfCases:
-    """Represents the table of cases for one publication"""
-    def __init__(self):
-        self.cases = []
-        self.count_by_jurisdiction = {}
-
-    def load(self, file_path):
-        text, encoding = read_unicode_dammit(file_path)
-        soup = bs4.BeautifulSoup(text, settings.html_parser)
-        self._extract_cases_from_soup(soup)
-
-    def _extract_cases_from_soup(self, soup):
-        for entry in soup.find_all("p", class_="case"):
-            entry: bs4.Tag = entry
-            text = _remove_last_colon_and_after(entry.text)  # removes references to book sections
-            text = re.sub(r"\s+", " ", text)  # removes newlines, etc.
-            self._extract_cases_from_text(text)
-
-    def _extract_cases_from_text(self, text):
-        if text == 'Thalheimer v City of San Diego (9th Cir 2011) 645 F3d 1109 (overruled in part on other grounds in Board of Trustees of the Glazing Health & Welfare Trust v Chambers (9th Cir 2019) 941 F3d 1195)':
-            print("TEST")
-        match = re.search(r"\([a-z']+ (in part )?on other grounds in", text)
-        if match:
-            text1 = text[:match.start()].strip()
-            text2 = text[match.end():].strip()
-            if text2.endswith(")"):
-                text2 = text2[:-1]
-            self._extract_cases_from_text(text1)
-            self._extract_cases_from_text(text2)
-            return
-        for entry_text_item in re.split(r", [a-z']+ (in part )?on other grounds in", text):
-            if not entry_text_item or entry_text_item == "in part ":
-                continue
-            case = Case(entry_text_item.strip())
-            self.cases.append(case)
-            self._count(case)
-
-    def _count(self, case):
-        if not case.is_valid():
-            return
-        jurisdiction = case.jurisdiction()
-        if jurisdiction not in self.count_by_jurisdiction:
-            self.count_by_jurisdiction[jurisdiction] = 0
-        self.count_by_jurisdiction[jurisdiction] += 1
-
-
 _STATUTE_LEVEL_1_WORDS = ["california", "united states"]
 _STATUTE_LEVEL_2_WORDS = ["constitution", "statutes", "regulations", "rules", "regulatory actions", "ethics"]
 _STATUTE_PATH_PREFIXES = ["Art ", "Title ", "Div ", "Chap ", "Amend "]
@@ -226,6 +144,7 @@ _STATUTE_PATH_PREFIXES = ["Art ", "Title ", "Div ", "Chap ", "Amend "]
 
 class TableOfStatutes:
     def __init__(self):
+        self.statute_count_by_jurisdiction = {}
         self.statutes: List[Statute] = []
         self._path: List[str] = []
         self._path_used = False  # the value of _path has been used since it was changed
@@ -239,8 +158,6 @@ class TableOfStatutes:
         for entry in soup.find_all("p"):
             entry_text = _remove_last_colon_and_after(entry.text)  # removes references to book sections
             entry_text = re.sub(r"\s+", " ", entry_text).strip()  # fixes newlines and spaces in entry_text
-            if entry_text.lower() == "united states":
-                print("TEST")
             if not entry_text:
                 continue
             if entry["class"][0] == "TableCtr":
