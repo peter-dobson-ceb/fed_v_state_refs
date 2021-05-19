@@ -1,10 +1,16 @@
 import os.path
 import unittest
 
-from refs import reporters, TableOfCases, TableOfStatutes
+from refs import reporters, case_order, sort_cases, TableOfCases, TableOfStatutes
 from settings import settings
 
 test_pub_dirs = ["AdminHearing_2020_10"]
+unsorted_cases = ["212 CA4th 807 (2013)", "33 C4th 523 (2004)", "212 CA4th 548", "391 P2d 441 (Alaska 1964)",
+                  "155 SW2d 149 (Mo 1941)", "240 CA4th Supp 44 (2015)", "57 C2d 840 (1962)", "179 CA3d 657 (1986)",
+                  "171 CA4th 1058 (2009)", "118 CA4th 1353 (2004)"]
+sorted_cases_ = ['57 C2d 840 (1962)', '33 C4th 523 (2004)', '179 CA3d 657 (1986)', '118 CA4th 1353 (2004)',
+                 '171 CA4th 1058 (2009)', '212 CA4th 548', '212 CA4th 807 (2013)', '240 CA4th Supp 44 (2015)',
+                 '155 SW2d 149 (Mo 1941)', '391 P2d 441 (Alaska 1964)']
 # noinspection SpellCheckingInspection
 test_cases = ['448 F3d 1168', '108 CA3d 696', '53 C2d 674', '17 C2d 280', '265 US 274', '44 S Ct 565',
               '196 CA4th 311', '67 CA4th 575', '10 C3d 60', '88 CA3d 811', '13 C4th 1017', '21 C4th 310',
@@ -25,6 +31,22 @@ test_cases = ['448 F3d 1168', '108 CA3d 696', '53 C2d 674', '17 C2d 280', '265 U
               '170 CA4th 127', '120 CA 426']
 
 test_statute_ids = []
+
+
+class TestSortedCases(unittest.TestCase):
+
+    def test_sortable_case(self):
+        text = case_order('212 CA4th 807 (2013)')
+        self.assertEqual(text, '00 008 0212 00807 (2013)')
+        previous = ""
+        for case in sorted_cases_:
+            text = case_order(case)
+            self.assertGreater(text, previous, f"case {case} not in expected order")
+        return
+
+    def test_sorted_cases(self):
+        cases = sort_cases(unsorted_cases)
+        self.assertEqual(sorted_cases_, cases)
 
 
 class TestTableOfCases(unittest.TestCase):

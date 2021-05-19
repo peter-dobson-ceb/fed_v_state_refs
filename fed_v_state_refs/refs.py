@@ -29,8 +29,8 @@ class Reporters:
     There is a limited set of reporters used in CEB publications.
     They are groups into jurisdictions."""
     def __init__(self):
-        # noinspection SpellCheckingInspection
         self.ca_jurisdiction = "1-California"
+        # noinspection SpellCheckingInspection
         self.reporters_by_jurisdiction = {
             # these are all the court reporters used in CEB style - we hope
             # the jurisdiction is prefixed by a digit so we can sort them when we output a report
@@ -49,6 +49,7 @@ class Reporters:
         self._jurisdiction_by_reporter_map = {}
         # noinspection PyTypeChecker
         self._case_pattern: re.Pattern = None
+        self._order_by_reporter = None
 
     def jurisdiction_for_reporter(self, reporter: str):
         if reporter not in self.jurisdiction_by_reporter_map():
@@ -79,8 +80,51 @@ class Reporters:
             self._case_pattern = re.compile(regex)
         return self._case_pattern
 
+    def reporter_order(self, reporter) -> str:
+        self._make_order_by_reporter()
+        if reporter in self._order_by_reporter:
+            reporter = self._order_by_reporter[reporter]
+        return reporter
+
+    def _make_order_by_reporter(self):
+        if not self._order_by_reporter:
+            self._order_by_reporter = {}
+            for i, jurisdiction in enumerate(self.reporters_by_jurisdiction.keys()):
+                for j, reporter in enumerate(self.reporters_by_jurisdiction[jurisdiction]):
+                    order = f"{i:02d} {j:03d}"
+                    self._order_by_reporter[reporter] = order
+        return
+
 
 reporters = Reporters()
+
+
+def case_order(case_str: str):
+    """Takes a case of the form VOL REPORTER PAGE (NOTE) and returns it as REPORTER VOL PAGE (NOTE),
+    also the VOL and PAGE components are zero padded to 4 digits.
+    If we sorted by sortable_case then we get cases grouped in a useful order.
+    """
+    # remove parenthesis if any
+    note = ""
+    match = re.fullmatch(r"(.*) (\(.*\)?)", case_str)
+    if match:
+        case_str, note = match.groups()
+    parts = case_str.split()
+    if not bool(re.fullmatch("[0-9]+", parts[0]+parts[-1])):
+        return case_str
+    vol = int(parts[0])
+    reporter = " ".join(parts[1:-1])
+    page = int(parts[-1])
+    sort_this = f"{reporters.reporter_order(reporter)} {vol:04d} {page:05d} {note}"
+    return sort_this
+
+
+def sort_cases(cases) -> List[str]:
+    cases = list(cases)  # convert iterable to list
+    cases.append("9999 zzz 99999")
+    cases.sort(key=case_order)
+    cases = cases[:-1]
+    return cases
 
 
 class TableOfCases:

@@ -5,7 +5,7 @@ from typing import Dict, List, Set
 
 from .common import is_dir_for_a_pub, XmlTag
 from .progress import Progress
-from .refs import TableOfCases, TableOfStatutes
+from .refs import sort_cases, TableOfCases, TableOfStatutes
 from .salesforce_metadata import salesforce_metadata
 from .settings import settings
 
@@ -28,7 +28,7 @@ class ReferenceGroup:
 
     def list_cases_for(self, jurisdiction):
         if jurisdiction in self.cases_by_jurisdiction:
-            return list(self.cases_by_jurisdiction[jurisdiction])
+            return sort_cases(self.cases_by_jurisdiction[jurisdiction])
         return []
 
     def __lt__(self, other):  # this makes ReferenceGroups sortable by name
@@ -42,6 +42,7 @@ class Publication(ReferenceGroup):
         self.short_name = os.path.basename(dir_path)
         self.nxt_id = ""
         self._year_month = ""
+        self._practice_area_name = ""
         self._read_mak_file()
 
     def year_month(self):
@@ -90,14 +91,16 @@ class Publication(ReferenceGroup):
         return os.path.join(self.dir_path, "ems.htm")
 
     def get_primary_practice_area_name(self) -> str:
-        metadata_by_pub_nxt_id = salesforce_metadata.get_salesforce_metadata_by_pub_nxt_id()
-        if metadata_by_pub_nxt_id and self.nxt_id in metadata_by_pub_nxt_id:
-            data = metadata_by_pub_nxt_id[self.nxt_id]
-            if data:
-                for practice_area in data["practiceAreas"]:
-                    if practice_area["primary"]:
-                        return practice_area["name"]
-        return ""
+        if not self._practice_area_name:
+            metadata_by_pub_nxt_id = salesforce_metadata.get_salesforce_metadata_by_pub_nxt_id()
+            if metadata_by_pub_nxt_id and self.nxt_id in metadata_by_pub_nxt_id:
+                data = metadata_by_pub_nxt_id[self.nxt_id]
+                if data:
+                    for practice_area in data["practiceAreas"]:
+                        if practice_area["primary"]:
+                            self._practice_area_name = practice_area["name"]
+                            break
+        return self._practice_area_name
 
 
 class PracticeArea(ReferenceGroup):
@@ -162,6 +165,7 @@ class ScanPublications:
             pub.read_table_of_cases()
             pub.read_table_of_statutes()
             progress.show(f"scanned  {pub.short_name}", 1)
+        progress.clear()
         return
 
     def gather_practice_area_results(self):
