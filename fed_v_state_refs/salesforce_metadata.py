@@ -26,7 +26,7 @@ class SalesforceMetadata:
         return self._salesforce_metadata_cache
 
     def get_salesforce_metadata_by_pub_nxt_id(self):
-        if not len(self._salesforce_metadata_by_pub_nxt_id)or \
+        if not len(self._salesforce_metadata_by_pub_nxt_id) or \
                 self._cache_expires >= datetime.datetime.now():
             metadata = self.get_salesforce_metadata()
             for product in metadata["products"]:

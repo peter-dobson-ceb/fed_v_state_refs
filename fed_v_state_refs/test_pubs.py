@@ -1,8 +1,9 @@
 import unittest
 
 from argparse import Namespace
-from pubs import Publication, Publications
-from settings import settings
+
+from fed_v_state_refs.pubs import Publication, ScanPublications
+from fed_v_state_refs.settings import settings
 
 
 class TestPublication(unittest.TestCase):
@@ -19,7 +20,7 @@ class TestPublications(unittest.TestCase):
         initialize_settings()
 
     def test_publications(self):
-        publications = Publications()
+        publications = ScanPublications()
         publications.scan_pubs()
         self.assertGreater(len(publications.pubs_by_nxt_id), 0)
         self.assertGreater(len(publications.practice_areas_by_name), 0)

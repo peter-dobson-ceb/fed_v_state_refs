@@ -1,4 +1,6 @@
 # Project
+cache/
+output/
 stash/
 
 # PyCharm
