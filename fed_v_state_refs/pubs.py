@@ -21,6 +21,11 @@ class ReferenceGroup:
         self.cases_by_jurisdiction: Dict[str, Set[str]] = {}
         self.statute_count_by_jurisdiction: Dict[str, int] = {}
 
+    def count_statutes_for(self, jurisdiction):
+        if jurisdiction in self.statute_count_by_jurisdiction:
+            return self.statute_count_by_jurisdiction[jurisdiction]
+        return 0
+
     def count_cases_for(self, jurisdiction):
         if jurisdiction in self.cases_by_jurisdiction:
             return len(self.cases_by_jurisdiction[jurisdiction])
