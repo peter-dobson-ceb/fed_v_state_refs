@@ -85,15 +85,17 @@ class TestTableOfStatutes(unittest.TestCase):
             table_of_statutes = TableOfStatutes()
             file_path = os.path.join(settings.base_folder, "test_data", pub_dir, "ems.htm")
             table_of_statutes.load(file_path)
-            for found_statute, test_statute_id in zip(table_of_statutes.statutes, test_statute_ids):
-                self.assertEquals(test_statute_id, found_statute.id, "statutes don't match")
-            # code used to create list of case cases above
-            if len(test_statute_ids) < len(table_of_statutes.statutes):
-                for found_statute in table_of_statutes.statutes[len(test_cases):]:
-                    print(found_statute.id)
+            expect = {"CALIFORNIA": 2293, "UNITED STATES": 22}
+            self.assertEqual(expect, table_of_statutes.statute_count_by_jurisdiction)
         return
 
-    def test_is_sections_ref(self):
-        self.assertTrue(TableOfStatutes._is_sections_ref("1"))
+    def test_parse_many(self):
+        """parse all ems.htm"""
+        paths = [dir_entry.path for dir_entry in os.scandir(r"G:\CDROM\NXT\ContentElmer")]
+        for path in paths:
+            if os.path.isfile(os.path.join(path, "ems.htm")):
+                print(os.path.basename(path))
+                table_of_statutes = TableOfStatutes()
+                table_of_statutes.load(os.path.join(path, "ems.htm"))
 
 # end of file

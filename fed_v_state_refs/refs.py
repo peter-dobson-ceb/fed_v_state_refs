@@ -22,6 +22,14 @@ class Jurisdictions:
     OTHER = "3-Other States"
     UNKNOWN = "4-Unknown"
 
+    @staticmethod
+    def jurisdiction_for_statute_heading(heading):
+        if heading.upper() == "CALIFORNIA":
+            return Jurisdictions.CA
+        elif heading.upper() == "UNITED STATES":
+            return Jurisdictions.FED
+        return None
+
 
 class Reporters:
     """Manages information about the middle part of a case reference.
@@ -166,32 +174,9 @@ class TableOfCases:
         self.cases_by_jurisdiction[jurisdiction].append(case_info)
 
 
-class Statute:
-    def __init__(self, path: List[str], section=""):
-        self.path = list(path)  # make a copy of path
-        self.section = section
-        self.id = " / ".join(self.path)
-        if section:
-            self.id += " / " + section
-
-    def __str__(self):
-        info = f"{self.__module__}.{self.__class__.__name__} object; "
-        trim_index = 88-len(info)
-        info += f"'{self.id}'"[-trim_index:]
-        return f"<{info[0:88]}>"
-
-
-_STATUTE_LEVEL_1_WORDS = ["california", "united states"]
-_STATUTE_LEVEL_2_WORDS = ["constitution", "statutes", "regulations", "rules", "regulatory actions", "ethics"]
-_STATUTE_PATH_PREFIXES = ["Art ", "Title ", "Div ", "Chap ", "Amend "]
-
-
 class TableOfStatutes:
     def __init__(self):
         self.statute_count_by_jurisdiction = {}
-        self.statutes: List[Statute] = []
-        self._path: List[str] = []
-        self._path_used = False  # the value of _path has been used since it was changed
 
     def load(self, file_path):
         text, encoding = read_unicode_dammit(file_path)
@@ -199,87 +184,32 @@ class TableOfStatutes:
         self._extract_statutes(soup)
 
     def _extract_statutes(self, soup):
+        jurisdiction = ""
         for entry in soup.find_all("p"):
-            entry_text = _remove_last_colon_and_after(entry.text)  # removes references to book sections
-            entry_text = re.sub(r"\s+", " ", entry_text).strip()  # fixes newlines and spaces in entry_text
+            entry_text, refs_to_book_sections = TableOfStatutes.split_entry_ref(entry.text)
+            entry_text = entry_text.strip()  # fixes newlines and spaces in entry_text
             if not entry_text:
                 continue
-            if entry["class"][0] == "TableCtr":
-                if entry_text.lower() in _STATUTE_LEVEL_1_WORDS:
-                    self._path_trim_add(0, entry_text)
-                elif entry_text.lower() in _STATUTE_LEVEL_2_WORDS:
-                    self._path_trim_add(1, entry_text)
-                else:
-                    self._path_add(entry_text)  # all TableCtr entries become part of path
-            elif entry["class"][0] == "code":
-                self._path_trim_add(2, entry_text)
-            elif entry["class"][0] == "stat":
-                prefix = TableOfStatutes._find_starts_with(entry_text, _STATUTE_PATH_PREFIXES)
-                if prefix:
-                    self._path_trim_add(prefix, entry_text)
-                elif TableOfStatutes._is_sections_ref(entry_text):
-                    self._statute_add(entry_text)
-                else:
-                    self._path_add(entry_text)
+            if entry_text.upper() in ["CALIFORNIA", "UNITED STATES"]:
+                jurisdiction = Jurisdictions.jurisdiction_for_statute_heading(entry_text)
+            elif refs_to_book_sections:
+                if jurisdiction not in self.statute_count_by_jurisdiction:
+                    self.statute_count_by_jurisdiction[jurisdiction] = 0
+                self.statute_count_by_jurisdiction[jurisdiction] += 1
         return
 
-    def _path_trim_add(self, trim, text):
-        if isinstance(trim, str):
-            self._path_trim_back_to(trim)
-        else:
-            if len(self._path) > trim and not self._path_used:
-                self._statute_add()
-            del self._path[trim:]
-        self._path.append(text)
-        self._path_used = False
-
-    def _path_trim_back_to(self, prefix):
-        new_path = []
-        for entry in self._path:
-            if entry.startswith(prefix):
-                if not self._path_used:
-                    self._statute_add()
-                self._path = new_path
-                return
-            new_path.append(entry)
-        return
-
-    def _path_add(self, text):
-        self._path.append(text)
-        self._path_used = False
-
-    def _statute_add(self, section=""):
-        self.statutes.append(Statute(self._path, section))
-        self._path_used = True
-
     @staticmethod
-    def _find_starts_with(text, prefix_list):
-        for prefix in prefix_list:
-            if text.startswith(prefix):
-                return prefix
-        return None
-
-    @staticmethod
-    def _is_sections_ref(text: str) -> bool:
-        if text.startswith("§"):
-            return True
-        parts = text.split("[-\u2013]")
-        if len(parts) not in [1, 2]:
-            return False
-        for part in parts:
-            if not re.match(r"[0-9]+(\.[0-9]+)?(\([a-z]\))?", part):
-                return False
-        return True
-
-
-def _remove_last_colon_and_after(text: str) -> str:
-    """Remove the last occurrence of a colon ':' and all characters after.
-    If no colon is in string, return string unchanged."""
-    try:
-        index = text.rindex(":")
-        return text[:index]
-    except ValueError:
-        pass
-    return text
+    def split_entry_ref(text: str) -> (str, str):
+        """Separate the entry from references to CEB publication sections.
+        Remove the last occurrence of a colon ':' and all characters after.
+        If no colon is in string, entry is whole string, and references are empty string."""
+        try:
+            index = text.rindex(":")
+            section = text[:index]
+            ref = text[index+1:]
+            return section, ref
+        except ValueError:
+            pass
+        return text, ""
 
 # end of file

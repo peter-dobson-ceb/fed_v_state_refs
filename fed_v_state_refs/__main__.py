@@ -35,7 +35,7 @@ def main():
 
     print("write summary")
     write_summary(practice_areas, r"output\summary2.csv")
-    print("write details")
+    print("write case details")
     write_case_details(practice_areas, r"output\case_details.txt")
 
     exit(0)
@@ -111,7 +111,11 @@ def _write_summary_row(writer, ref_group):
     ca_case_count = ref_group.count_cases_for(Jurisdictions.CA)
     fed_case_count = ref_group.count_cases_for(Jurisdictions.FED)
     other_case_count = ref_group.count_cases_for(Jurisdictions.OTHER)
-    writer.writerow([ref_group.name, ca_case_count, fed_case_count, other_case_count])
+    ca_statute_count = ref_group.count_statutes_for(Jurisdictions.CA)
+    fed_statute_count = ref_group.count_statutes_for(Jurisdictions.FED)
+    writer.writerow([ref_group.name,
+                     ca_case_count, fed_case_count, other_case_count,
+                     ca_statute_count, fed_statute_count])
 
 
 if __name__ == '__main__':
